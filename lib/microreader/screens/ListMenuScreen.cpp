@@ -1,11 +1,11 @@
 #include "ListMenuScreen.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 
-#include "../HeapLog.h"
-
 #include "../Application.h"
+#include "../HeapLog.h"
 #include "../display/ui_font_header.h"
 #include "../display/ui_font_large.h"
 #include "../display/ui_font_medium.h"
@@ -40,6 +40,8 @@ void ListMenuScreen::start(DrawBuffer& buf, IRuntime& runtime) {
     ui_font_.init(kFontData_ui_small_mbf, kFontData_ui_small_mbf_size);
   if (!header_font_.valid())
     header_font_.init(kFontData_ui_header_mbf, kFontData_ui_header_mbf_size);
+  if (!status_font_.valid())
+    status_font_.init(kFontData_ui_small_mbf, kFontData_ui_small_mbf_size);
   const int prev_selected = selected_;
   clear_items();
   on_start_set_selection_ = false;
@@ -183,25 +185,51 @@ int ListMenuScreen::draw_header_(DrawBuffer& buf, int W, int H) const {
 int ListMenuScreen::draw_bottom_(DrawBuffer& buf, int W, int H, std::optional<uint8_t> battery_pct) const {
   if (battery_pct.has_value()) {
     const int bat_pct = battery_pct.value();
+    const BatteryStyle style = app_ ? app_->battery_style() : BatteryStyle::Icon;
+    const bool show_icon = style != BatteryStyle::Percent;
+    const bool show_text = style != BatteryStyle::Icon && status_font_.valid();
+
     const int kBarW = 26;
     const int kBarH = 8;
-    const int kBarX = (W - kBarW) / 2;
-    const int kBarY = H - kHintCenterY - kBarH / 2;  // centre the bar on the hint line
+    constexpr int kTextGap = 4;  // space between icon and percentage text
 
-    // Outline: rounded corners.
-    buf.fill_rect(kBarX + 1, kBarY, kBarW - 2, 1, false);
-    buf.fill_rect(kBarX + 1, kBarY + kBarH - 1, kBarW - 2, 1, false);
-    buf.fill_rect(kBarX, kBarY + 1, 1, kBarH - 2, false);
-    buf.fill_rect(kBarX + kBarW - 1, kBarY + 1, 1, kBarH - 2, false);
+    char pct_str[8] = {};
+    int text_w = 0;
+    if (show_text) {
+      std::snprintf(pct_str, sizeof(pct_str), "%d%%", bat_pct);
+      text_w = status_font_.word_width(pct_str, std::strlen(pct_str), FontStyle::Regular);
+    }
 
-    // Fill bar: sloped right edge (fuller = wider).
-    const int max_fill = kBarW - 4;
-    const int filled = (bat_pct * max_fill) / 100;
-    if (filled > 0) {
-      buf.fill_row(kBarY + 5, kBarX + 2, kBarX + 2 + std::min(filled + 3, max_fill), false);
-      buf.fill_row(kBarY + 4, kBarX + 2, kBarX + 2 + std::min(filled + 2, max_fill), false);
-      buf.fill_row(kBarY + 3, kBarX + 2, kBarX + 2 + std::min(filled + 1, max_fill), false);
-      buf.fill_row(kBarY + 2, kBarX + 2, kBarX + 2 + std::min(filled, max_fill), false);
+    // Centre the whole group (icon + gap + text) on the horizontal middle of the screen.
+    const int group_w = (show_icon ? kBarW : 0) + (show_icon && show_text ? kTextGap : 0) + text_w;
+    const int group_x = (W - group_w) / 2;
+
+    if (show_icon) {
+      const int kBarX = group_x;
+      const int kBarY = H - kHintCenterY - kBarH / 2;  // centre the bar on the hint line
+
+      // Outline: rounded corners.
+      buf.fill_rect(kBarX + 1, kBarY, kBarW - 2, 1, false);
+      buf.fill_rect(kBarX + 1, kBarY + kBarH - 1, kBarW - 2, 1, false);
+      buf.fill_rect(kBarX, kBarY + 1, 1, kBarH - 2, false);
+      buf.fill_rect(kBarX + kBarW - 1, kBarY + 1, 1, kBarH - 2, false);
+
+      // Fill bar: sloped right edge (fuller = wider).
+      const int max_fill = kBarW - 4;
+      const int filled = (bat_pct * max_fill) / 100;
+      if (filled > 0) {
+        buf.fill_row(kBarY + 5, kBarX + 2, kBarX + 2 + std::min(filled + 3, max_fill), false);
+        buf.fill_row(kBarY + 4, kBarX + 2, kBarX + 2 + std::min(filled + 2, max_fill), false);
+        buf.fill_row(kBarY + 3, kBarX + 2, kBarX + 2 + std::min(filled + 1, max_fill), false);
+        buf.fill_row(kBarY + 2, kBarX + 2, kBarX + 2 + std::min(filled, max_fill), false);
+      }
+    }
+
+    if (show_text) {
+      // Fixed small font, vertically centred on the hint line (same rule as the nav glyphs).
+      const int text_x = group_x + (show_icon ? kBarW + kTextGap : 0);
+      const int text_y = H - kHintCenterY - (status_font_.y_advance() + 1) / 2 + status_font_.baseline();
+      buf.draw_text_proportional(text_x, text_y, pct_str, std::strlen(pct_str), status_font_, false);
     }
   }
 

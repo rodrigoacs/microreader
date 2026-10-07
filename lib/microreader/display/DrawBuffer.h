@@ -88,6 +88,13 @@ class IDisplay {
   // Put the display controller into deep sleep (low-power mode).
   virtual void deep_sleep() {}
 
+  // Dark mode: when enabled, every pixel buffer written to display RAM is bit-inverted
+  // on the way out (white <-> black). Draw buffers keep their normal semantics, so no
+  // screen code needs to know about it. LUT/command data is never inverted.
+  virtual void set_inverted(bool inverted) {
+    (void)inverted;
+  }
+
   // Notify the display of the logical rotation used by the caller.
   // Used by the desktop emulator to resize/orient the SDL window.
   virtual void set_rotation(Rotation r) {
@@ -157,6 +164,21 @@ class DrawBuffer {
 
   Rotation rotation() const {
     return rotation_;
+  }
+
+  // -- Dark mode (inverted display)
+  // ----------------------------------------
+  // Inversion happens in the display driver, so draw code is unaffected.
+  // Toggling schedules a full refresh on the next refresh() to clear ghosting.
+  void set_dark_mode(bool enabled) {
+    if (enabled == dark_mode_)
+      return;
+    dark_mode_ = enabled;
+    display_.set_inverted(enabled);
+    full_refresh_pending_ = true;
+  }
+  bool dark_mode() const {
+    return dark_mode_;
   }
 
   // -- Draw helpers (logical coordinates)
@@ -435,6 +457,10 @@ class DrawBuffer {
 
   // Swap active<->inactive, then do a partial hardware refresh.
   void refresh() {
+    if (full_refresh_pending_) {
+      full_refresh();  // clears the pending flag
+      return;
+    }
     display_.partial_refresh(inactive_(), active_());
     active_idx_ = 1 - active_idx_;
     active_valid_ = true;
@@ -442,6 +468,7 @@ class DrawBuffer {
 
   // Call full hardware refresh using the current inactive buffer, then sync both.
   void full_refresh(RefreshMode mode = RefreshMode::Half, bool turnOffScreen = false) {
+    full_refresh_pending_ = false;
     display_.full_refresh(inactive_(), mode, turnOffScreen);
     memcpy(bufs_[active_idx_], bufs_[1 - active_idx_], kBufSize);
     active_idx_ = 1 - active_idx_;
@@ -464,6 +491,8 @@ class DrawBuffer {
   // refresh with screen power-off, then deep sleep. Intended for the power-off splash screen.
   // Uses draw_image() so that images wider than kPhysicalWidth (e.g. 800px) are clipped correctly.
   void show_grayscale_image(const uint8_t* lsb, const uint8_t* msb, uint16_t w, uint16_t h) {
+    // Pictures are shown as-is, never inverted (inverting both planes would show a negative).
+    const NoInvertScope_ no_invert(*this);
     fill(true);
     draw_image(lsb, 0, 0, w, h);
     display_.write_ram_bw(inactive_());
@@ -738,6 +767,8 @@ class DrawBuffer {
   int active_idx_ = 0;
   bool active_valid_ = true;  // false after reset_after_scratch(); restored by refresh()/full_refresh()
   Rotation rotation_ = Rotation::Deg90;
+  bool dark_mode_ = false;
+  bool full_refresh_pending_ = false;  // set by set_dark_mode(); next refresh() becomes a full refresh
 
   uint8_t* inactive_() {
     return bufs_[1 - active_idx_];
@@ -805,7 +836,21 @@ class DrawBuffer {
     }
   };
 
+  // Temporarily disables driver-side inversion (sleep images are pictures, not UI).
+  struct NoInvertScope_ {
+    explicit NoInvertScope_(DrawBuffer& b) : b_(b) {
+      if (b_.dark_mode_)
+        b_.display_.set_inverted(false);
+    }
+    ~NoInvertScope_() {
+      if (b_.dark_mode_)
+        b_.display_.set_inverted(true);
+    }
+    DrawBuffer& b_;
+  };
+
   void show_mgr2_sleep_(Mgr2Source_& src, bool deep_sleep_after) {
+    const NoInvertScope_ no_invert(*this);
     auto decode_pass = [&](bool red_bit) {
       fill(false);
       for (uint16_t y = 0; y < src.h && y < DisplayFrame::kPhysicalHeight; ++y) {

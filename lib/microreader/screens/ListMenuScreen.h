@@ -92,10 +92,22 @@ class ListMenuScreen : public IScreen {
   // Call from stop() to release RAM while preserving the cursor position
   // for the fallback path in ListMenuScreen::start().
   void free_items_storage() {
-    { std::vector<std::string_view> tmp; labels_.swap(tmp); }
-    { std::deque<std::string> tmp; owned_strings_.swap(tmp); }
-    { std::vector<bool> tmp; separators_.swap(tmp); }
-    { std::vector<int> tmp; indents_.swap(tmp); }
+    {
+      std::vector<std::string_view> tmp;
+      labels_.swap(tmp);
+    }
+    {
+      std::deque<std::string> tmp;
+      owned_strings_.swap(tmp);
+    }
+    {
+      std::vector<bool> tmp;
+      separators_.swap(tmp);
+    }
+    {
+      std::vector<int> tmp;
+      indents_.swap(tmp);
+    }
   }
   int selected() const {
     return selected_;
@@ -131,6 +143,7 @@ class ListMenuScreen : public IScreen {
  protected:
   BitmapFont ui_font_;
   BitmapFont header_font_;
+  BitmapFont status_font_;    // fixed small font for the battery percentage (independent of menu size)
   static int font_size_idx_;  // 0=Normal, 1=Large, 2=XLarge
 
   void request_redraw() {

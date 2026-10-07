@@ -762,7 +762,9 @@ void ReaderScreen::render_page_(DrawBuffer& buf) {
   }
 
   // Track whether grayscale pass is needed (deferred to update()).
-  grayscale_pending_ = fset && fset->has_grayscale();
+  // Skipped in dark mode: the anti-aliasing LUT is tuned for dark glyphs on a white
+  // background and produces artifacts on an inverted panel.
+  grayscale_pending_ = fset && fset->has_grayscale() && !buf.dark_mode();
 
   // ── BW rendering
   // ────────────────────────────────────────────────────────

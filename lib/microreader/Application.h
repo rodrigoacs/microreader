@@ -21,6 +21,9 @@
 namespace microreader {
 
 // All navigable screens in the application.
+// How the battery level is shown in the menu bottom bar.
+enum class BatteryStyle : uint8_t { Icon = 0, Percent = 1, Both = 2 };
+
 enum class ScreenId : uint8_t {
   None = 0,
   MainMenu,
@@ -147,6 +150,22 @@ class Application {
     save_settings_();
   }
 
+  BatteryStyle battery_style() const {
+    return battery_style_;
+  }
+  void set_battery_style(BatteryStyle s) {
+    battery_style_ = s;
+    save_settings_();
+  }
+
+  bool dark_mode() const {
+    return dark_mode_;
+  }
+  void set_dark_mode(bool v) {
+    dark_mode_ = v;
+    save_settings_();
+  }
+
   int menu_font_size() const {
     return menu_font_size_;
   }
@@ -220,7 +239,9 @@ class Application {
 
   // Reset the inactivity timer so the device won't sleep. Call each tick
   // whenever an external connection (e.g. USB serial) is active.
-  void keep_awake() { inactivity_ms_ = 0; }
+  void keep_awake() {
+    inactivity_ms_ = 0;
+  }
   // Auto-open a book by path (skips menu, for debugging).
   void auto_open_book(const char* epub_path, DrawBuffer& buf, IRuntime& runtime);
   void update(const ButtonState& buttons, uint32_t dt_ms, DrawBuffer& buf, IRuntime& runtime);
@@ -243,6 +264,8 @@ class Application {
   bool invert_bottom_paging_ = true;
   bool invert_side_buttons_ = false;
   bool rotate_display_ = false;
+  bool dark_mode_ = false;
+  BatteryStyle battery_style_ = BatteryStyle::Icon;
 
   int menu_font_size_ = 0;
   uint16_t open_counter_ = 0;  // monotonically increasing; incremented each time a book is opened

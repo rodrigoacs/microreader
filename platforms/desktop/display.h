@@ -35,7 +35,7 @@ class DesktopEmulatorDisplay final : public microreader::IDisplay {
       const int x_buf = x + microreader::DisplayFrame::kPanelOffsetX;
       const std::size_t byte_idx = static_cast<std::size_t>(y * microreader::DisplayFrame::kStride + x_buf / 8);
       const uint8_t bit = static_cast<uint8_t>(0x80u >> (x_buf & 7));
-      sim_[i] = (pixels[byte_idx] & bit) ? 1.0f : 0.0f;
+      sim_[i] = (((pixels[byte_idx] & bit) != 0) != inverted_) ? 1.0f : 0.0f;
     }
     render_();
     SDL_Delay(kRefreshDelayMs);
@@ -49,7 +49,7 @@ class DesktopEmulatorDisplay final : public microreader::IDisplay {
         const int x_buf = x + microreader::DisplayFrame::kPanelOffsetX;
         const std::size_t byte_idx = static_cast<std::size_t>(y * microreader::DisplayFrame::kStride + x_buf / 8);
         const uint8_t bit = static_cast<uint8_t>(0x80u >> (x_buf & 7));
-        const bool new_white = (new_pixels[byte_idx] & bit) != 0;
+        const bool new_white = ((new_pixels[byte_idx] & bit) != 0) != inverted_;
         const bool old_white = sim_[y * microreader::DisplayFrame::kPhysicalWidth + x] >= 0.5f;
         if (old_white != new_white)
           sim_[y * microreader::DisplayFrame::kPhysicalWidth + x] = new_white ? 1.0f : 0.0f;
@@ -64,14 +64,14 @@ class DesktopEmulatorDisplay final : public microreader::IDisplay {
   void write_ram_bw(const uint8_t* data) override {
     if (gray_bw_.empty())
       gray_bw_.resize(microreader::DisplayFrame::kPixelBytes);
-    std::memcpy(gray_bw_.data(), data, microreader::DisplayFrame::kPixelBytes);
+    copy_ram_(gray_bw_.data(), data);
   }
 
   // Store RED RAM data for subsequent grayscale_refresh.
   void write_ram_red(const uint8_t* data) override {
     if (gray_red_.empty())
       gray_red_.resize(microreader::DisplayFrame::kPixelBytes);
-    std::memcpy(gray_red_.data(), data, microreader::DisplayFrame::kPixelBytes);
+    copy_ram_(gray_red_.data(), data);
   }
 
   void revert_grayscale(const uint8_t* /*prev_pixels*/) override {
@@ -124,6 +124,11 @@ class DesktopEmulatorDisplay final : public microreader::IDisplay {
     render_();
   }
 
+  // Dark mode: mirror the hardware driver, which bit-inverts every RAM write.
+  void set_inverted(bool inverted) override {
+    inverted_ = inverted;
+  }
+
   bool in_grayscale_mode() const override {
     return in_grayscale_mode_;
   }
@@ -141,7 +146,7 @@ class DesktopEmulatorDisplay final : public microreader::IDisplay {
         const int x = sim_x0 + col;
         if (x < 0 || x >= microreader::DisplayFrame::kPhysicalWidth)
           continue;
-        const bool white = (src[col / 8] >> (7 - (col & 7))) & 1;
+        const bool white = (((src[col / 8] >> (7 - (col & 7))) & 1) != 0) != inverted_;
         sim_[y * microreader::DisplayFrame::kPhysicalWidth + x] = white ? 1.0f : 0.0f;
       }
     }
@@ -157,6 +162,13 @@ class DesktopEmulatorDisplay final : public microreader::IDisplay {
   bool in_grayscale_mode_ = false;
   std::vector<uint8_t> gray_bw_;   // BW RAM (state bit 0) staged for grayscale_refresh
   std::vector<uint8_t> gray_red_;  // RED RAM (state bit 1) staged for grayscale_refresh
+  bool inverted_ = false;          // dark mode (see set_inverted)
+
+  // Copy a frame into staged RAM, applying dark-mode inversion like the real driver.
+  void copy_ram_(uint8_t* dst, const uint8_t* src) const {
+    for (std::size_t i = 0; i < microreader::DisplayFrame::kPixelBytes; ++i)
+      dst[i] = inverted_ ? static_cast<uint8_t>(~src[i]) : src[i];
+  }
 
   // Simulate grayscale revert: restore the pre-grayscale BW state.
   void grayscale_revert_sim_() {

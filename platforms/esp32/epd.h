@@ -321,6 +321,10 @@ class EInkDisplay : public microreader::IDisplay {
     writeRamBuffer(CMD_WRITE_RAM_RED, prev_pixels, BUFFER_SIZE);
   }
 
+  void set_inverted(bool inverted) override {
+    inverted_ = inverted;
+  }
+
   void deep_sleep() override {
     sendCommand(CMD_DEEP_SLEEP);
     sendData(0x03);
@@ -558,8 +562,26 @@ class EInkDisplay : public microreader::IDisplay {
 
   void writeRamBuffer(uint8_t ramBuffer, const uint8_t* data, uint32_t size) {
     sendCommand(ramBuffer);
-    sendData(data, size);
+    if (!inverted_) {
+      sendData(data, size);
+      return;
+    }
+    // Dark mode: stream the bit-inverted frame through a small bounce buffer so the
+    // caller's buffer is never modified and no second 48 KB frame is needed.
+    uint32_t offset = 0;
+    while (offset < size) {
+      const uint32_t n = (size - offset < kInvChunk) ? (size - offset) : kInvChunk;
+      for (uint32_t i = 0; i < n; ++i)
+        inv_chunk_[i] = static_cast<uint8_t>(~data[offset + i]);
+      sendData(inv_chunk_, n);
+      offset += n;
+    }
   }
+
+  // Dark mode state + bounce buffer (internal RAM, DMA-capable on ESP32-C3).
+  static constexpr uint32_t kInvChunk = 512;
+  bool inverted_ = false;
+  alignas(4) uint8_t inv_chunk_[kInvChunk] = {};
 
   // Load a custom LUT into the SSD1677's waveform register, or clear the flag.
   void setCustomLUT_(const uint8_t* lut_data) {

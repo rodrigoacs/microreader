@@ -54,6 +54,18 @@ static std::string get_rotate_display_label(bool rotated) {
   return std::string("Display: ") + (rotated ? "Landscape" : "Portrait");
 }
 
+static std::string get_dark_mode_label(bool dark) {
+  return std::string("Theme: ") + (dark ? "Dark" : "Light");
+}
+
+static std::string get_battery_style_label(BatteryStyle s) {
+  if (s == BatteryStyle::Percent)
+    return "Battery: Percent";
+  if (s == BatteryStyle::Both)
+    return "Battery: Icon + Percent";
+  return "Battery: Icon";
+}
+
 static std::string get_menu_font_label(int size) {
   return std::string("Menu Size: ") + (size == 0 ? "Small" : (size == 1 ? "Medium" : "Large"));
 }
@@ -151,7 +163,8 @@ void SettingsScreen::on_start() {
         if (ent->d_name[0] == '.')
           continue;
         const char* ext = std::strrchr(ent->d_name, '.');
-        if (!ext) continue;
+        if (!ext)
+          continue;
         if (strcmp(ext, ".mgr") == 0)
           sd_sleep.push_back(std::string("/sdcard/.sleep/") + ent->d_name);
         else if (strcmp(ext, ".bmp") == 0)
@@ -192,6 +205,12 @@ void SettingsScreen::on_start() {
   // --- Appearance ---
   idx_rotate_display_ = count();
   add_item(get_rotate_display_label(app_ && app_->rotate_display()));
+
+  idx_dark_mode_ = count();
+  add_item(get_dark_mode_label(app_ && app_->dark_mode()));
+
+  idx_battery_style_ = count();
+  add_item(get_battery_style_label(app_ ? app_->battery_style() : BatteryStyle::Icon));
 
   idx_menu_font_ = count();
   add_item(get_menu_font_label(app_ ? app_->menu_font_size() : 0));
@@ -307,7 +326,8 @@ void SettingsScreen::on_select(int index) {
   }
   if (index == idx_sort_order_) {
     if (app_) {
-      BookSortOrder order = (app_->sort_order() == BookSortOrder::Alphabetical) ? BookSortOrder::LastOpened : BookSortOrder::Alphabetical;
+      BookSortOrder order =
+          (app_->sort_order() == BookSortOrder::Alphabetical) ? BookSortOrder::LastOpened : BookSortOrder::Alphabetical;
       app_->set_sort_order(order);
       set_item_label(idx_sort_order_, get_sort_order_label(order));
     }
@@ -359,6 +379,25 @@ void SettingsScreen::on_select(int index) {
       app_->set_rotate_display(v);
       set_item_label(idx_rotate_display_, get_rotate_display_label(v));
       buf_->set_rotation(v ? Rotation::Deg0 : Rotation::Deg90);
+    }
+    return;
+  }
+  if (index == idx_dark_mode_) {
+    if (app_ && buf_) {
+      bool v = !app_->dark_mode();
+      app_->set_dark_mode(v);
+      set_item_label(idx_dark_mode_, get_dark_mode_label(v));
+      buf_->set_dark_mode(v);  // next redraw is a full refresh (clears ghosting)
+    }
+    return;
+  }
+  if (index == idx_battery_style_) {
+    if (app_) {
+      // Cycle Icon -> Percent -> Both -> Icon. The bottom bar redraws with the new style
+      // right away because ListMenuScreen redraws after every selection.
+      const auto next = static_cast<BatteryStyle>((static_cast<uint8_t>(app_->battery_style()) + 1) % 3);
+      app_->set_battery_style(next);
+      set_item_label(idx_battery_style_, get_battery_style_label(next));
     }
     return;
   }
