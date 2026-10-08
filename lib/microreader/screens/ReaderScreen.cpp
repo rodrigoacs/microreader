@@ -1,3 +1,4 @@
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: skip grayscale anti-aliasing in dark mode.
 #include "ReaderScreen.h"
 
 #include <cstdio>

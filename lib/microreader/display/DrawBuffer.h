@@ -1,3 +1,4 @@
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: dark mode (set_dark_mode, IDisplay::set_inverted, full refresh on toggle, non-inverted sleep images).
 #pragma once
 
 #include <algorithm>

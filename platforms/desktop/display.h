@@ -1,3 +1,4 @@
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: dark mode (emulates inverted RAM writes).
 #pragma once
 
 #include <SDL.h>

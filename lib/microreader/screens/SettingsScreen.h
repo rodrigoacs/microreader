@@ -1,3 +1,4 @@
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: Theme and Battery settings entries.
 #pragma once
 
 #include "../Input.h"

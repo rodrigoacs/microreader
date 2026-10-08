@@ -1,3 +1,4 @@
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: Theme (Light/Dark) and Battery (Icon/Percent/Both) settings.
 #include "SettingsScreen.h"
 
 #include <cstdio>
@@ -163,8 +164,7 @@ void SettingsScreen::on_start() {
         if (ent->d_name[0] == '.')
           continue;
         const char* ext = std::strrchr(ent->d_name, '.');
-        if (!ext)
-          continue;
+        if (!ext) continue;
         if (strcmp(ext, ".mgr") == 0)
           sd_sleep.push_back(std::string("/sdcard/.sleep/") + ent->d_name);
         else if (strcmp(ext, ".bmp") == 0)
@@ -326,8 +326,7 @@ void SettingsScreen::on_select(int index) {
   }
   if (index == idx_sort_order_) {
     if (app_) {
-      BookSortOrder order =
-          (app_->sort_order() == BookSortOrder::Alphabetical) ? BookSortOrder::LastOpened : BookSortOrder::Alphabetical;
+      BookSortOrder order = (app_->sort_order() == BookSortOrder::Alphabetical) ? BookSortOrder::LastOpened : BookSortOrder::Alphabetical;
       app_->set_sort_order(order);
       set_item_label(idx_sort_order_, get_sort_order_label(order));
     }

@@ -1,11 +1,13 @@
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: battery percentage in the menu bottom bar.
 #include "ListMenuScreen.h"
 
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 
-#include "../Application.h"
 #include "../HeapLog.h"
+
+#include "../Application.h"
 #include "../display/ui_font_header.h"
 #include "../display/ui_font_large.h"
 #include "../display/ui_font_medium.h"

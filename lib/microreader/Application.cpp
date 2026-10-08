@@ -1,3 +1,4 @@
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: persist and apply dark_mode / battery_style settings.
 #include "Application.h"
 
 #include <cstdlib>
@@ -5,8 +6,8 @@
 #include <ctime>
 
 #include "HeapLog.h"
-#include "content/BmpSleepConverter.h"
 #include "content/BookIndex.h"
+#include "content/BmpSleepConverter.h"
 
 #ifdef ESP_PLATFORM
 #include <dirent.h>
@@ -103,27 +104,19 @@ void Application::auto_open_book(const char* epub_path, DrawBuffer& buf, IRuntim
 
 // Convert/cache a BMP sleep image and display it. Returns true if shown.
 static bool show_bmp_sleep(const char* bmp_path, const char* data_dir, DrawBuffer& buf) {
-  if (!data_dir)
-    return false;
+  if (!data_dir) return false;
   const char* slash = std::strrchr(bmp_path, '/');
-  const char* back = std::strrchr(bmp_path, '\\');
-  if (back > slash)
-    slash = back;
+  const char* back  = std::strrchr(bmp_path, '\\');
+  if (back > slash) slash = back;
   const char* bname = slash ? slash + 1 : bmp_path;
-  const char* dot = std::strrchr(bname, '.');
+  const char* dot   = std::strrchr(bname, '.');
   int nlen = dot ? (int)(dot - bname) : (int)std::strlen(bname);
   char cache_dir[256];
   std::snprintf(cache_dir, sizeof(cache_dir), "%s/cache/sleep", data_dir);
   char cache_path[384];
   std::snprintf(cache_path, sizeof(cache_path), "%s/%.*s.mgr", cache_dir, nlen, bname);
   bool cached = false;
-  {
-    std::FILE* cf = std::fopen(cache_path, "rb");
-    if (cf) {
-      std::fclose(cf);
-      cached = true;
-    }
-  }
+  { std::FILE* cf = std::fopen(cache_path, "rb"); if (cf) { std::fclose(cf); cached = true; } }
   if (!cached) {
 #ifdef ESP_PLATFORM
     char parent[256];
@@ -131,9 +124,7 @@ static bool show_bmp_sleep(const char* bmp_path, const char* data_dir, DrawBuffe
     mkdir(parent, 0775);
     mkdir(cache_dir, 0775);
 #else
-    try {
-      fs::create_directories(cache_dir);
-    } catch (...) {}
+    try { fs::create_directories(cache_dir); } catch (...) {}
 #endif
     MR_LOGI("sleep", "converting BMP: %s", bmp_path);
     cached = convert_bmp_to_mgr2(bmp_path, cache_path);
@@ -177,8 +168,7 @@ void Application::do_sleep_(DrawBuffer& buf) {
       if (ent->d_name[0] == '.')
         continue;
       const char* ext = std::strrchr(ent->d_name, '.');
-      if (!ext)
-        continue;
+      if (!ext) continue;
       if (std::strcmp(ext, ".mgr") == 0) {
         images.push_back(std::string("/sdcard/.sleep/") + ent->d_name);
       } else if (std::strcmp(ext, ".bmp") == 0 && data_dir_) {
