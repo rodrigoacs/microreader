@@ -1,0 +1,121 @@
+# Fork acs: compila firmware + emulador a cada push/PR e publica uma Release a cada tag acs-v*.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["acs-v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    name: Firmware (ESP32-C3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # tags + history: tools/generate_version.py usa git describe / rev-list
+
+      # Arquivos regenerados pelo build não devem marcar a versão como "-dirty".
+      - name: Ignore build-generated files
+        run: git update-index --assume-unchanged lib/microreader/version.h platforms/esp32/assets_embedded.S sdkconfig.esp32c3
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio
+          key: ${{ runner.os }}-pio-${{ hashFiles('platformio.ini') }}
+          restore-keys: ${{ runner.os }}-pio-
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO and esptool
+        run: pip install --upgrade platformio "esptool>=4.8,<5"
+
+      - name: Build firmware
+        run: pio run -e esp32c3
+
+      - name: Merge into a single image (flash at 0x0)
+        id: merge
+        run: |
+          NAME="microreader-$(git describe --tags --match 'acs-v*' --always)"
+          BUILD=.pio/build/esp32c3
+          python -m esptool --chip esp32c3 merge_bin -o "$NAME.bin" \
+            --flash_mode dio --flash_size 16MB \
+            0x0     "$BUILD/bootloader.bin" \
+            0x8000  "$BUILD/partitions.bin" \
+            0xE000  otadata_boot_app0.bin \
+            0x10000 "$BUILD/firmware.bin"
+          cp "$BUILD/firmware.bin" "$NAME-app-0x10000.bin"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          grep MICROREADER_VERSION lib/microreader/version.h
+          ls -la ./*.bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            ${{ steps.merge.outputs.name }}.bin
+            ${{ steps.merge.outputs.name }}-app-0x10000.bin
+          if-no-files-found: error
+
+  desktop:
+    name: Desktop emulator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7 # o CMake do emulador chama "python"
+        with:
+          python-version: "3.12"
+
+      - name: Install SDL2 build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libx11-dev libxext-dev libxrandr-dev \
+            libxcursor-dev libxi-dev libxss-dev libxkbcommon-dev libwayland-dev libegl-dev wayland-protocols
+
+      - name: Configure
+        run: cmake -S platforms/desktop -B build/desktop -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.5
+
+      - name: Build
+        run: cmake --build build/desktop -j"$(nproc)"
+
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/acs-v')
+    needs: [firmware, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          name: Microreader ${{ github.ref_name }}
+          generate_release_notes: true
+          files: "*.bin"
+          body: |
+            Fork of [CidVonHighwind/microreader](https://github.com/CidVonHighwind/microreader) by acs — GPL v2.
+
+            **Requires an unlocked Xteink X4.** Back up your flash first:
+            `python -m esptool --chip esp32c3 --port <PORT> read_flash 0x0 0x1000000 backup.bin`
+
+            | File | Flash at |
+            |---|---|
+            | `microreader-${{ github.ref_name }}.bin` | `0x0` (full image — use this one with esptool or web flashers) |
+            | `microreader-${{ github.ref_name }}-app-0x10000.bin` | `0x10000` (application only) |
+
+            `python -m esptool --chip esp32c3 --port <PORT> --baud 921600 write_flash 0x0 microreader-${{ github.ref_name }}.bin`
