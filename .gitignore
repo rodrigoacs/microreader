@@ -50,3 +50,6 @@ test/bench_results.json
 /version.txt
 /sd/.sleep
 /test/build_verify
+
+# Fork: test books dropped directly in the virtual SD root
+/sd/*.epub
