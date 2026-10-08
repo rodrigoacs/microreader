@@ -170,8 +170,10 @@ class WifiFileServer final : public microreader::IFileServer {
       s_.io_granted_.store(false);
       s_.io_request_.store(true);
       const int64_t deadline = esp_timer_get_time() + 5000000;  // 5 s
+      // Block for at least one tick (10 ms at CONFIG_FREERTOS_HZ=100): pdMS_TO_TICKS(2)
+      // is 0 there, which never yields to the lower-priority main loop that grants access.
       while (!s_.io_granted_.load() && esp_timer_get_time() < deadline)
-        vTaskDelay(pdMS_TO_TICKS(2));
+        vTaskDelay(1);
       ok_ = s_.io_granted_.load();
     }
     ~IoLock() {

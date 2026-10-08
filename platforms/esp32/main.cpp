@@ -175,7 +175,7 @@ extern "C" void app_main(void) {
     // (display and SD share SPI2_HOST). The HTTP task releases it when done.
     if (wifi_server.io_requested()) {
       wifi_server.grant_io();
-      vTaskDelay(pdMS_TO_TICKS(5));
+      vTaskDelay(1);  // one tick; pdMS_TO_TICKS(5) would be 0 at 100 Hz
       continue;
     }
 
