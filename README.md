@@ -11,6 +11,7 @@
 | 1.2 | **Battery percentage** — `Settings → Battery: Icon / Percent / Icon + Percent` in the menu bottom bar. |
 | 1.2 | **Fork versioning** — the version shown in Settings comes from `acs-v*` git tags (e.g. `acs-v1.2` → `1.2 by acs`; later commits → `1.2+N by acs`). |
 | 1.3 | **Wi-Fi Transfer** — `Settings → Wi-Fi Transfer` turns the reader into a Wi-Fi access point (`Microreader-XXXX`, WPA2 with a random password shown on screen). Open `http://192.168.4.1` on a phone or computer to upload, list and delete books. The radio is only on while that screen is open; leaving it stops Wi-Fi and rebuilds the book index. Uploads go to `/books`. |
+| 1.4 | **Book cover sleep image** — `Settings → Sleep Image: Book cover` shows the cover of the book you are reading (or the last one opened) when the reader sleeps, in 4 grey levels and never inverted by dark mode. The cover comes from the EPUB (EPUB 2 `meta cover`, EPUB 3 `cover-image`, or an image named *cover*), is converted once and cached in `.microreader/cache/<book>/`; books without a cover fall back to the automatic sleep images. |
 
 Every source file changed by this fork starts with a `// Modified by acs …` notice describing the change.
 
