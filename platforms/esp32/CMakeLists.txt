@@ -13,6 +13,7 @@ set(lib_sources
     ${LIB}/screens/MainMenu.cpp
     ${LIB}/screens/ReaderScreen.cpp
     ${LIB}/screens/SettingsScreen.cpp
+    ${LIB}/screens/WifiTransferScreen.cpp
     ${LIB}/screens/ChapterSelectScreen.cpp
     ${LIB}/screens/LinksScreen.cpp
     ${LIB}/screens/ReaderOptionsScreen.cpp
@@ -41,7 +42,8 @@ idf_component_register(
     SRCS ${app_sources} ${lib_sources} ${CMAKE_CURRENT_LIST_DIR}/miniz_wrapper.cpp
          ${CMAKE_CURRENT_LIST_DIR}/assets_embedded.S
     INCLUDE_DIRS "." "${CMAKE_CURRENT_LIST_DIR}/../../lib" "${MINIZ_DIR}"
-    REQUIRES fatfs driver wear_levelling)
+    REQUIRES fatfs driver wear_levelling
+             esp_wifi esp_netif esp_event esp_http_server nvs_flash)  # Wi-Fi Transfer (acs fork)
 
 # IDF 5.x adds -Wno-old-style-declaration (C-only) globally; GCC -Werror rejects
 # it when compiling C++ files. Remove both flags from the entire IDF build so that:

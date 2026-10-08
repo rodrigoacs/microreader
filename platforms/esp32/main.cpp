@@ -1,3 +1,4 @@
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-08: Wi-Fi Transfer file server wiring.
 #include <cstdio>
 
 #include "asset_blob.h"
@@ -22,6 +23,7 @@
 #include "runtime.h"
 #include "sdcard.h"
 #include "serial_communication.h"
+#include "wifi_file_server.h"
 
 static void verify_ota() {
   const esp_partition_t* running = esp_ota_get_running_partition();
@@ -156,6 +158,10 @@ extern "C" void app_main(void) {
 
   app.set_invalidate_font_fn([]() { FontPartition::invalidate(); });
 
+  // Wi-Fi Transfer (Settings > Wi-Fi Transfer). Radio is only on while that screen is open.
+  static WifiFileServer wifi_server;
+  app.set_file_server(&wifi_server);
+
   app.start(buf, runtime);
 
   ESP_LOGI("mem", "after app.start: free=%lu largest=%lu", (unsigned long)esp_get_free_heap_size(),
@@ -165,6 +171,14 @@ extern "C" void app_main(void) {
   input.clear_button(microreader::Button::Power);
 
   while (runtime.should_continue() && app.running()) {
+    // Wi-Fi Transfer wants the SD card: pause here, where no SPI transfer is in flight
+    // (display and SD share SPI2_HOST). The HTTP task releases it when done.
+    if (wifi_server.io_requested()) {
+      wifi_server.grant_io();
+      vTaskDelay(pdMS_TO_TICKS(5));
+      continue;
+    }
+
     // Suppress auto-sleep while a PC is connected over USB.
 #ifndef QEMU_BUILD
     if (usb_serial_jtag_is_connected()) {

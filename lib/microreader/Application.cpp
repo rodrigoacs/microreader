@@ -1,4 +1,5 @@
-// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: persist and apply dark_mode / battery_style settings.
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: persist and apply dark_mode / battery_style settings;
+// 2026-10-08: Wi-Fi Transfer screen wiring and rebuild_book_index().
 #include "Application.h"
 
 #include <cstdlib>
@@ -46,6 +47,7 @@ void Application::start(DrawBuffer& buf, IRuntime& runtime) {
   reader_options_.set_app(this);
   chapter_select_.set_app(this);
   links_screen_.set_app(this);
+  wifi_transfer_.set_app(this);
 
 #ifdef MICROREADER_ENABLE_DEMOS
   bouncing_ball_.set_app(this);
@@ -291,6 +293,8 @@ IScreen* microreader::Application::screen_for_(ScreenId id) {
       return &chapter_select_;
     case ScreenId::Links:
       return &links_screen_;
+    case ScreenId::WifiTransfer:
+      return &wifi_transfer_;
 
 #ifdef MICROREADER_ENABLE_DEMOS
     case ScreenId::BouncingBall:
@@ -371,6 +375,17 @@ void microreader::Application::save_settings_() {
 
   std::fclose(f);
 }
+void microreader::Application::rebuild_book_index(DrawBuffer& buf) {
+  if (!menu_.has_books_dir() || !data_dir_)
+    return;
+  const std::string index_path = std::string(data_dir_) + "/book_index.dat";
+  buf.sync_bw_ram();
+  BookIndex::instance().load(index_path);
+  BookIndex::instance().build_index(menu_.books_dir(), buf);
+  BookIndex::instance().save(index_path);
+  buf.reset_after_scratch(true);
+}
+
 void microreader::Application::record_book_opened(const std::string& path) {
   BookIndex::instance().set_last_opened(path, ++open_counter_);
   if (data_dir_) {

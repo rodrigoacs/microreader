@@ -1,4 +1,5 @@
-// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: Theme and Battery settings entries.
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: Theme and Battery settings entries;
+// 2026-10-08: Wi-Fi Transfer entry.
 #pragma once
 
 #include "../Input.h"
@@ -59,6 +60,7 @@ class SettingsScreen final : public ListMenuScreen {
   int idx_rotate_display_ = -1;
   int idx_dark_mode_ = -1;
   int idx_battery_style_ = -1;
+  int idx_wifi_transfer_ = -1;
   int idx_menu_font_ = -1;
   int idx_font_ = -1;
   int idx_sleep_image_ = -1;

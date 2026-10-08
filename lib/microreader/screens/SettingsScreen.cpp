@@ -1,4 +1,5 @@
-// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: Theme (Light/Dark) and Battery (Icon/Percent/Both) settings.
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: Theme (Light/Dark) and Battery (Icon/Percent/Both) settings;
+// 2026-10-08: Wi-Fi Transfer entry.
 #include "SettingsScreen.h"
 
 #include <cstdio>
@@ -245,6 +246,11 @@ void SettingsScreen::on_start() {
 
   add_separator();
 
+  if (app_ && app_->file_server()) {
+    idx_wifi_transfer_ = count();
+    add_item("Wi-Fi Transfer");
+  }
+
   if (data_dir_) {
     idx_clear_cache_ = count();
     add_item("Clear Cache");
@@ -302,6 +308,10 @@ void SettingsScreen::on_select(int index) {
     return;
   }
 #endif
+  if (index == idx_wifi_transfer_) {
+    app_->push_screen(ScreenId::WifiTransfer);
+    return;
+  }
   if (index == idx_clear_cache_) {
     clear_cache_();
     toast_original_label_ = get_item_label(idx_clear_cache_);

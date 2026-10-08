@@ -1,9 +1,11 @@
-// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: dark mode and battery style settings.
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: dark mode and battery style settings;
+// 2026-10-08: Wi-Fi file transfer (file server hook, WifiTransfer screen, rebuild_book_index).
 #pragma once
 
 #include <cstdint>
 #include <functional>
 
+#include "FileServer.h"
 #include "FontManager.h"
 #include "Input.h"
 #include "Runtime.h"
@@ -16,6 +18,7 @@
 #include "screens/ReaderOptionsScreen.h"
 #include "screens/ReaderScreen.h"
 #include "screens/SettingsScreen.h"
+#include "screens/WifiTransferScreen.h"
 #include "screens/demo/BouncingBallDemo.h"
 #include "screens/demo/GrayscaleDemo.h"
 
@@ -35,6 +38,7 @@ enum class ScreenId : uint8_t {
   Links,
   BouncingBall,
   GrayscaleDemo,
+  WifiTransfer,
 };
 
 class Application {
@@ -79,6 +83,17 @@ class Application {
   FontManager* font_manager() const {
     return font_manager_;
   }
+
+  // Platform file server used by the Wi-Fi Transfer screen (nullptr = not available).
+  void set_file_server(IFileServer* fs) {
+    file_server_ = fs;
+  }
+  IFileServer* file_server() const {
+    return file_server_;
+  }
+
+  // Rescan the books directory and save the index (same as Settings > Rebuild Book Index).
+  void rebuild_book_index(DrawBuffer& buf);
 
   // Optional callback for "Invalidate Font" in the Settings menu (ESP32 only).
   void set_invalidate_font_fn(std::function<void()> fn) {
@@ -282,6 +297,7 @@ class Application {
   ReaderOptionsScreen reader_options_;
   ChapterSelectScreen chapter_select_;
   LinksScreen links_screen_;
+  WifiTransferScreen wifi_transfer_;
 
 #ifdef MICROREADER_ENABLE_DEMOS
   BouncingBallDemo bouncing_ball_;
@@ -295,6 +311,7 @@ class Application {
 
   const BitmapFontSet* reader_font_ = nullptr;
   FontManager* font_manager_ = nullptr;
+  IFileServer* file_server_ = nullptr;
   std::function<void()> invalidate_font_fn_;
 
   IScreen* screen_for_(ScreenId id);
