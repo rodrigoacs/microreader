@@ -9,7 +9,9 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <mutex>
+#include <new>
 #include <string>
 
 #include "esp_event.h"
@@ -311,7 +313,7 @@ class WifiFileServer final : public microreader::IFileServer {
   // Accepts a plain "name.epub" (no directories, no control or reserved characters).
   static bool valid_book_name_(const char* name) {
     const size_t len = std::strlen(name);
-    if (len < 6 || len > 120 || name[0] == '.' || name[0] == ' ')
+    if (len < 6 || len > 240 || name[0] == '.' || name[0] == ' ')
       return false;
     for (size_t i = 0; i < len; ++i) {
       const unsigned char c = static_cast<unsigned char>(name[i]);
@@ -328,14 +330,27 @@ class WifiFileServer final : public microreader::IFileServer {
            std::tolower(static_cast<unsigned char>(ext[4])) == 'b';
   }
 
+  // Reads ?name= into out (decoded). The query is still percent-encoded when it
+  // is read (a space is 3 bytes, an accented letter 6), so the raw value can be
+  // several times longer than the final name: size the buffers from the query.
   static bool query_name_(httpd_req_t* req, char* out, size_t out_len) {
-    char query[384];
-    if (httpd_req_get_url_query_str(req, query, sizeof(query)) != ESP_OK)
+    const size_t qlen = httpd_req_get_url_query_len(req);
+    if (qlen == 0 || qlen > 2048)
       return false;
-    if (httpd_query_key_value(query, "name", out, out_len) != ESP_OK)
+    std::unique_ptr<char[]> query(new (std::nothrow) char[qlen + 1]);
+    std::unique_ptr<char[]> raw(new (std::nothrow) char[qlen + 1]);
+    if (!query || !raw)
       return false;
-    url_decode_(out);
-    return valid_book_name_(out);
+    if (httpd_req_get_url_query_str(req, query.get(), qlen + 1) != ESP_OK ||
+        httpd_query_key_value(query.get(), "name", raw.get(), qlen + 1) != ESP_OK)
+      return false;
+    url_decode_(raw.get());
+    if (std::strlen(raw.get()) >= out_len || !valid_book_name_(raw.get())) {
+      ESP_LOGW(kTag, "rejected name '%.80s'", raw.get());
+      return false;
+    }
+    std::strcpy(out, raw.get());
+    return true;
   }
 
   static void json_escape_(std::string& dst, const char* s) {
@@ -414,7 +429,7 @@ class WifiFileServer final : public microreader::IFileServer {
 
   // POST /api/upload?name=<file.epub>   body = raw file bytes
   esp_err_t handle_upload_(httpd_req_t* req) {
-    char name[128];
+    char name[256];
     if (!query_name_(req, name, sizeof(name)))
       return send_json_(req, "400 Bad Request", "{\"error\":\"Invalid file name (must be a .epub)\"}");
     const size_t total = req->content_len;
@@ -507,7 +522,7 @@ class WifiFileServer final : public microreader::IFileServer {
 
   // POST /api/delete?name=<file.epub>   (only books inside /books can be deleted)
   esp_err_t handle_delete_(httpd_req_t* req) {
-    char name[128];
+    char name[256];
     if (!query_name_(req, name, sizeof(name)))
       return send_json_(req, "400 Bad Request", "{\"error\":\"Invalid file name\"}");
     const std::string path = std::string(kUploadDir) + "/" + name;
@@ -567,7 +582,8 @@ async function list(){try{const r=await fetch('/api/books');const b=await r.json
 $('#l').innerHTML=b.length?b.sort((x,y)=>x.name.localeCompare(y.name)).map(x=>`<li><span>${esc(x.name)}<br><small>${kb(x.size)} · ${esc(x.path)}</small></span>${x.deletable?`<button data-n="${esc(x.name)}">Delete</button>`:''}</li>`).join(''):'<li><small>No books yet.</small></li>'}
 catch(e){$('#l').innerHTML='<li class="err">Could not load the list.</li>'}}
 $('#l').onclick=async e=>{const n=e.target.dataset.n;if(!n||!confirm('Delete "'+n+'"?'))return;
-await fetch('/api/delete?name='+encodeURIComponent(n),{method:'POST'});list()};
+const r=await fetch('/api/delete?name='+encodeURIComponent(n),{method:'POST'});
+if(!r.ok){let m='failed';try{m=(await r.json()).error}catch(_){}alert('Could not delete: '+m)}list()};
 function add(files){for(const f of files){if(!/\.epub$/i.test(f.name))continue;const d=document.createElement('div');
 d.innerHTML=`<div>${esc(f.name)} <small>(${kb(f.size)})</small> <small class="st">waiting</small></div><div class="bar"><i></i></div>`;$('#q').appendChild(d);q.push({f,d})}next()}
 function next(){if(busy||!q.length)return;busy=true;const {f,d}=q.shift(),x=new XMLHttpRequest();
