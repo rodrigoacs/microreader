@@ -1,5 +1,5 @@
-// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: dark mode (bit-inverted RAM writes in writeRamBuffer).
-﻿#pragma once
+﻿// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: dark mode (bit-inverted RAM writes in writeRamBuffer).
+#pragma once
 
 // EInkDisplay driver for ESP-IDF (SSD1677).
 
