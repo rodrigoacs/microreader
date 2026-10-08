@@ -1,3 +1,4 @@
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-08: cover_index() accessor.
 #pragma once
 
 #include <string>
@@ -151,6 +152,12 @@ class Epub {
     return zip_.find(path);
   }
   int find_entry_index(const std::string& path) const;
+
+  // ZIP entry index of the cover image declared in the OPF (-1 = none).
+  // May point to a non-image entry in badly formed books; callers should check.
+  int cover_index() const {
+    return cover_idx_;
+  }
 
  private:
   ZipReader zip_;

@@ -1,5 +1,5 @@
 // Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: Theme (Light/Dark) and Battery (Icon/Percent/Both) settings;
-// 2026-10-08: Wi-Fi Transfer entry.
+// 2026-10-08: Wi-Fi Transfer entry; "Book cover" sleep image option.
 #include "SettingsScreen.h"
 
 #include <cstdio>
@@ -75,6 +75,8 @@ static std::string get_menu_font_label(int size) {
 static std::string get_sleep_image_label(const std::string& path) {
   if (path.empty())
     return "Sleep Image: Auto";
+  if (path == kSleepImageCover)
+    return "Sleep Image: Book cover";
   std::string label = "Sleep Image: ";
   if (path.rfind("embedded:", 0) == 0) {
     int idx = std::atoi(path.c_str() + 9);
@@ -154,6 +156,7 @@ void SettingsScreen::on_start() {
   // custom images are present.
   sleep_images_.clear();
   sleep_images_.push_back("");  // Auto
+  sleep_images_.push_back(kSleepImageCover);
   sleep_image_sel_idx_ = 0;
   std::vector<std::string> sd_sleep;
 #ifdef ESP_PLATFORM

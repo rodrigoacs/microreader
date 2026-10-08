@@ -1,3 +1,4 @@
+// Modified by acs (fork of CidVonHighwind/microreader), 2026-10-08: EPUB 3 cover-image detection.
 #include "EpubParser.h"
 
 #include <algorithm>
@@ -538,6 +539,13 @@ EpubError Epub::parse_opf(IZipFile& file, const std::string& opf_path, uint8_t* 
             if (metadata_.cover_id.has_value() && id.length == metadata_.cover_id->size() &&
                 std::string(id.data, id.length) == *metadata_.cover_id) {
               cover_idx_ = idx;
+            }
+            // EPUB 3: <item properties="cover-image">. Used when there is no EPUB 2 cover meta.
+            if (cover_idx_ < 0 && !metadata_.cover_id.has_value()) {
+              auto props = ev.attrs.get("properties");
+              if (!props.empty() &&
+                  std::string(props.data, props.length).find("cover-image") != std::string::npos)
+                cover_idx_ = idx;
             }
           }
         }

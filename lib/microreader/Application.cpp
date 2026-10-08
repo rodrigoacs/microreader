@@ -1,5 +1,5 @@
 // Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: persist and apply dark_mode / battery_style settings;
-// 2026-10-08: Wi-Fi Transfer screen wiring and rebuild_book_index().
+// 2026-10-08: Wi-Fi Transfer screen wiring and rebuild_book_index(); book cover sleep image.
 #include "Application.h"
 
 #include <cstdlib>
@@ -9,6 +9,7 @@
 #include "HeapLog.h"
 #include "content/BookIndex.h"
 #include "content/BmpSleepConverter.h"
+#include "content/CoverSleep.h"
 
 #ifdef ESP_PLATFORM
 #include <dirent.h>
@@ -135,14 +136,99 @@ static bool show_bmp_sleep(const char* bmp_path, const char* data_dir, DrawBuffe
   return cached && buf.show_sleep_image(cache_path);
 }
 
+// Book whose cover the sleep screen shows: the one in the reader (also after
+// going back to the menu), else the most recently opened one in the index.
+std::string Application::current_book_path_() {
+  if (reader_.has_path())
+    return reader_.get_path();
+  const BookIndex& index = BookIndex::instance();
+  const BookIndexEntry* best = nullptr;
+  for (const auto& e : index.entries())
+    if (e.last_open_order > 0 && (!best || e.last_open_order > best->last_open_order))
+      best = &e;
+  return best ? best->path.to_string(index.pool()) : std::string();
+}
+
+// Show the current book's cover, converting it on first use. The converted
+// image is cached per book as <data>/cache/<stem>/cover_<epub size>.mgr (the
+// size in the name makes a replaced book with the same name convert again);
+// books without a usable cover get a .none marker so they are not retried.
+bool Application::show_cover_sleep_(DrawBuffer& buf) {
+  const std::string book = current_book_path_();
+  if (book.empty() || !data_dir_)
+    return false;
+
+  long epub_size = -1;
+  if (std::FILE* f = std::fopen(book.c_str(), "rb")) {
+    if (std::fseek(f, 0, SEEK_END) == 0)
+      epub_size = std::ftell(f);
+    std::fclose(f);
+  }
+  if (epub_size <= 0)
+    return false;
+
+  size_t name_start = book.find_last_of("/\\");
+  name_start = (name_start == std::string::npos) ? 0 : name_start + 1;
+  const size_t dot = book.rfind('.');
+  const std::string stem =
+      book.substr(name_start, (dot != std::string::npos && dot > name_start) ? dot - name_start : std::string::npos);
+  const std::string cache_dir = std::string(data_dir_) + "/cache";
+  const std::string book_dir = cache_dir + "/" + stem;
+  const std::string base = book_dir + "/cover_" + std::to_string(epub_size);
+  const std::string cover_path = base + ".mgr";
+  const std::string none_path = base + ".none";
+
+  auto exists = [](const std::string& p) {
+    std::FILE* f = std::fopen(p.c_str(), "rb");
+    if (f)
+      std::fclose(f);
+    return f != nullptr;
+  };
+  if (exists(cover_path))
+    return buf.show_sleep_image(cover_path.c_str());
+  if (exists(none_path))
+    return false;
+
+#ifdef ESP_PLATFORM
+  mkdir(cache_dir.c_str(), 0775);
+  mkdir(book_dir.c_str(), 0775);
+#else
+  try {
+    fs::create_directories(book_dir);
+  } catch (...) {
+  }
+#endif
+  MR_LOGI("sleep", "converting cover of '%s'", book.c_str());
+  const CoverResult r =
+      make_cover_sleep_image(book.c_str(), cover_path.c_str(), buf.scratch_buf1(), buf.scratch_buf2(), DrawBuffer::kBufSize);
+  buf.reset_after_scratch(true);
+  if (r == CoverResult::NoCover) {
+    if (std::FILE* f = std::fopen(none_path.c_str(), "wb"))
+      std::fclose(f);
+  }
+  return r == CoverResult::Ok && buf.show_sleep_image(cover_path.c_str());
+}
+
 void Application::do_sleep_(DrawBuffer& buf) {
   // Stop the active screen so it can save state (e.g. reading position).
   if (IScreen* top = screen_mgr_.top())
     top->stop();
 
+  // Cover of the current book; if there is none, fall back to auto-cycle below.
+  if (sleep_image_path_ == kSleepImageCover) {
+    save_settings_();
+    buf.set_rotation(Rotation::Deg90);
+    const bool shown = show_cover_sleep_(buf);
+    MR_LOGI("sleep", "cover shown: %d", (int)shown);
+    if (shown) {
+      running_ = false;
+      return;
+    }
+  }
+
   // If a specific image is pinned, always show it. Otherwise auto-cycle.
   MR_LOGI("sleep", "do_sleep_: pinned='%s' idx=%d", sleep_image_path_.c_str(), sleep_image_idx_);
-  if (!sleep_image_path_.empty()) {
+  if (!sleep_image_path_.empty() && sleep_image_path_ != kSleepImageCover) {
     save_settings_();
     buf.set_rotation(Rotation::Deg90);
     bool shown = false;

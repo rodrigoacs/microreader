@@ -1,5 +1,6 @@
 // Modified by acs (fork of CidVonHighwind/microreader), 2026-10-07: dark mode and battery style settings;
-// 2026-10-08: Wi-Fi file transfer (file server hook, WifiTransfer screen, rebuild_book_index).
+// 2026-10-08: Wi-Fi file transfer (file server hook, WifiTransfer screen, rebuild_book_index);
+// book cover sleep image.
 #pragma once
 
 #include <cstdint>
@@ -23,6 +24,9 @@
 #include "screens/demo/GrayscaleDemo.h"
 
 namespace microreader {
+
+// sleep_image_path() value that shows the cover of the current book.
+inline constexpr const char* kSleepImageCover = "cover";
 
 // All navigable screens in the application.
 // How the battery level is shown in the menu bottom bar.
@@ -71,6 +75,9 @@ class Application {
   void load_settings_();
   // Common sleep sequence (save state, show sleep image, set running_=false)
   void do_sleep_(DrawBuffer& buf);
+  // Cover of the current book as the sleep image (false = not available).
+  bool show_cover_sleep_(DrawBuffer& buf);
+  std::string current_book_path_();
 
   // Font management. set_reader_font() also propagates to the reader screen.
   void set_reader_font(const BitmapFontSet* fonts) {
