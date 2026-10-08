@@ -53,3 +53,4 @@ test/bench_results.json
 
 # Fork: test books dropped directly in the virtual SD root
 /sd/*.epub
+/microreader-*.bin
